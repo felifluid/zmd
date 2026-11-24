@@ -194,7 +194,7 @@ fn renderInline(self: *Parser, s: []const u8) anyerror!void {
         const consumed: ?usize = switch (s[i]) {
             '`' => try self.inlineDelimited(s, i, pending, "`", .code, false),
             '!' => if (startsAt(s, i + 1, "[")) try self.inlineLink(s, i, pending, .image) else null,
-            '[' => try self.inlineLink(s, i, pending, .link),
+            '[' => if (startsAt(s, i + 1, "[")) try self.inlineWikilink(s, i, pending, .wikilink) else try self.inlineLink(s, i, pending, .link),
             '{' => if (startsAt(s, i + 1, "{")) try self.inlineRef(s, i, pending) else null,
             '*' => if (startsAt(s, i, "**"))
                 try self.inlineDelimited(s, i, pending, "**", .bold, true)
@@ -276,6 +276,31 @@ fn inlineLink(
     return paren_close + 1;
 }
 
+fn inlineWikilink(
+    self: *Parser,
+    s: []const u8,
+    open: usize,
+    pending: []const u8,
+    comptime kind: ElementType,
+) !?usize {
+    const inner_open = if (kind == .image) open + 2 else open + 1;
+    const inner_close = findBracketClose(s, open) orelse return null;
+    if (startsAt(s, inner_close + 1, "]")) return null;
+
+    const vbar = findVbar(s, open);
+
+    const href = if (vbar) |val| s[inner_open + 1 .. val] else s[inner_open + 1 .. inner_close];
+    const label = if (vbar) |val| s[val + 1 .. inner_close] else s[inner_open + 1 .. inner_close];
+
+    try writeEscaped(self.writer, pending);
+    const node_value: Node = .{ .href = href };
+    const formatter: Config.Fn = if (kind == .image) self.config.image else self.config.wikilink;
+    const close_tag = try formatter(self.writer, node_value);
+    try self.renderInline(label);
+    if (close_tag.len > 0) try self.writer.writeAll(close_tag);
+    return inner_close + 2;
+}
+
 fn stripNewline(line: []const u8) []const u8 {
     if (line.len > 0 and line[line.len - 1] == '\n') return line[0 .. line.len - 1];
     return line;
@@ -338,6 +363,18 @@ fn findParenClose(s: []const u8, open: usize) ?usize {
                 depth -= 1;
             },
             else => {},
+        }
+    }
+    return null;
+}
+
+fn findVbar(s: []const u8, open: usize) ?usize {
+    var i = open + 1;
+    while (i < s.len) : (i += 1) {
+        switch (s[i]) {
+            '|' => return i,
+            ']' => return null,
+            else => continue,
         }
     }
     return null;
