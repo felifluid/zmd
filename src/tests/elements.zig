@@ -437,6 +437,31 @@ test "link" {
     try expectEqualStrings(html, parsed);
 }
 
+test "wikilink" {
+    const html =
+        \\<!DOCTYPE html>
+        \\<html>
+        \\<head>
+        \\  <meta charset="utf8">
+        \\</head>
+        \\<body>
+        \\<main>
+        \\<p><a class="wikilink" href="/example.md">link title</a></p>
+        \\</main>
+        \\</body>
+        \\</html>
+        \\
+    ;
+
+    const md =
+        \\[[/example.md|link title]]
+    ;
+
+    const parsed = try zmd.parseAlloc(allocator, md, .{});
+    defer allocator.free(parsed);
+    try expectEqualStrings(html, parsed);
+}
+
 test "dangling brackets (no href)" {
     const html =
         \\<!DOCTYPE html>
