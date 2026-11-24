@@ -105,7 +105,7 @@ const Default = struct {
     pub fn wikilink(writer: *Writer, node: Node) ![]const u8 {
         try writer.print(
             \\<a class="wikilink" href="{s}">
-        , .{node.href});
+        , .{node.href.?});
         return "</a>";
     }
 
