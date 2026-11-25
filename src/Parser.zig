@@ -193,8 +193,8 @@ fn renderInline(self: *Parser, s: []const u8) anyerror!void {
         const pending = s[text_start..i];
         const consumed: ?usize = switch (s[i]) {
             '`' => try self.inlineDelimited(s, i, pending, "`", .code, false),
-            '!' => if (startsAt(s, i + 1, "[")) try self.inlineLink(s, i, pending, .image) else null,
-            '[' => if (startsAt(s, i + 1, "[")) try self.inlineWikilink(s, i, pending, .wikilink) else try self.inlineLink(s, i, pending, .link),
+            '!' => try self.inlineLink(s, i, pending, true),
+            '[' => try self.inlineLink(s, i, pending, false),
             '{' => if (startsAt(s, i + 1, "{")) try self.inlineRef(s, i, pending) else null,
             '*' => if (startsAt(s, i, "**"))
                 try self.inlineDelimited(s, i, pending, "**", .bold, true)
@@ -254,14 +254,27 @@ fn inlineRef(
     return close + 2;
 }
 
-fn inlineLink(
+fn inlineLink(self: *Parser, s: []const u8, open: usize, pending: []const u8, is_image: bool) !?usize {
+    const bracket: usize = if (is_image) open + 1 else open;
+
+    if (startsAt(s, bracket, "[")) {
+        if (startsAt(s, bracket + 1, "[")) {
+            return inlineWikilink(self, s, open, pending, is_image);
+        } else {
+            return inlineMDLink(self, s, open, pending, is_image);
+        }
+    }
+    return null;
+}
+
+fn inlineMDLink(
     self: *Parser,
     s: []const u8,
     open: usize,
     pending: []const u8,
-    comptime kind: ElementType,
+    is_image: bool,
 ) !?usize {
-    const bracket = if (kind == .image) open + 1 else open;
+    const bracket = if (is_image) open + 1 else open;
     const title_close = findBracketClose(s, bracket) orelse return null;
     const paren_open = title_close + 1;
     if (paren_open >= s.len or s[paren_open] != '(') return null;
@@ -269,7 +282,7 @@ fn inlineLink(
 
     try writeEscaped(self.writer, pending);
     const node_value: Node = .{ .href = s[paren_open + 1 .. paren_close] };
-    const formatter: Config.Fn = if (kind == .image) self.config.image else self.config.link;
+    const formatter: Config.Fn = if (is_image) self.config.image else self.config.link;
     const close_tag = try formatter(self.writer, node_value);
     try self.renderInline(s[bracket + 1 .. title_close]);
     if (close_tag.len > 0) try self.writer.writeAll(close_tag);
@@ -281,20 +294,22 @@ fn inlineWikilink(
     s: []const u8,
     open: usize,
     pending: []const u8,
-    comptime kind: ElementType,
+    is_image: bool,
 ) !?usize {
-    const inner_open = if (kind == .image) open + 2 else open + 1;
-    const inner_close = findBracketClose(s, open) orelse return null;
-    if (startsAt(s, inner_close + 1, "]")) return null;
+    const outer_open = if (is_image) open + 1 else open;
+    const inner_open = outer_open + 1;
+    const inner_close = findBracketClose(s, inner_open) orelse return null;
+    const outer_close = inner_close + 1;
+    if (outer_close >= s.len and s[outer_close] != ']') return null;
 
     const vbar = findVbar(s, open);
 
-    const href = if (vbar) |val| s[inner_open + 1 .. val] else s[inner_open + 1 .. inner_close - 1];
-    const label = if (vbar) |val| s[val + 1 .. inner_close - 1] else s[inner_open + 1 .. inner_close - 1];
+    const href = if (vbar) |val| s[inner_open + 1 .. val] else s[inner_open + 1 .. inner_close];
+    const label = if (vbar) |val| s[val + 1 .. inner_close] else s[inner_open + 1 .. inner_close];
 
     try writeEscaped(self.writer, pending);
     const node_value: Node = .{ .href = href };
-    const formatter: Config.Fn = if (kind == .image) self.config.image else self.config.wikilink;
+    const formatter: Config.Fn = if (is_image) self.config.image else self.config.wikilink;
     const close_tag = try formatter(self.writer, node_value);
     try self.renderInline(label);
     if (close_tag.len > 0) try self.writer.writeAll(close_tag);

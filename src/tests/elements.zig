@@ -487,6 +487,31 @@ test "relative wikilink with anchor" {
     try expectEqualStrings(html, parsed);
 }
 
+test "image wikilink" {
+    const html =
+        \\<!DOCTYPE html>
+        \\<html>
+        \\<head>
+        \\  <meta charset="utf8">
+        \\</head>
+        \\<body>
+        \\<main>
+        \\<p><img src="image.png" title="image.png"></p>
+        \\</main>
+        \\</body>
+        \\</html>
+        \\
+    ;
+
+    const md =
+        \\![[image.png]]
+    ;
+
+    const parsed = try zmd.parseAlloc(allocator, md, .{});
+    defer allocator.free(parsed);
+    try expectEqualStrings(html, parsed);
+}
+
 test "dangling brackets (no href)" {
     const html =
         \\<!DOCTYPE html>
