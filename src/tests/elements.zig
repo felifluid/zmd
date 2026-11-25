@@ -387,6 +387,33 @@ test "block" {
     try expectEqualStrings(html, parsed);
 }
 
+test "blockquote" {
+    const html =
+        \\<!DOCTYPE html>
+        \\<html>
+        \\<head>
+        \\  <meta charset="utf8">
+        \\</head>
+        \\<body>
+        \\<main>
+        \\<blockquote>
+        \\<p>blockquote</p>
+        \\</blockquote>
+        \\</main>
+        \\</body>
+        \\</html>
+        \\
+    ;
+
+    const md =
+        \\> blockquote
+    ;
+
+    const parsed = try zmd.parseAlloc(allocator, md, .{});
+    defer allocator.free(parsed);
+    try expectEqualStrings(html, parsed);
+}
+
 test "image" {
     const html =
         \\<!DOCTYPE html>

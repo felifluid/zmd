@@ -21,6 +21,7 @@ unordered_list: Fn = Default.unorderedList,
 ordered_list: Fn = Default.orderedList,
 list_item: Fn = Default.listItem,
 code: Fn = Default.code,
+blockquote: Fn = Default.blockquote,
 paragraph: Fn = Default.paragraph,
 text: Fn = Default.text,
 ref: Fn = Default.ref,
@@ -47,6 +48,7 @@ pub const default: Config = .{
     .ordered_list = Default.orderedList,
     .list_item = Default.listItem,
     .code = Default.code,
+    .blockquote = Default.blockquote,
     .paragraph = Default.paragraph,
     .text = Default.text,
     .ref = Default.ref,
@@ -201,6 +203,15 @@ const Default = struct {
         );
 
         return "</span>";
+    }
+
+    pub fn blockquote(writer: *Writer, _: Node) ![]const u8 {
+        try writer.writeAll(
+            \\<blockquote>
+            \\
+        );
+
+        return "</blockquote>";
     }
 
     pub fn paragraph(writer: *Writer, _: Node) ![]const u8 {

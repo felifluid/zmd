@@ -5,6 +5,8 @@ writer: *Writer,
 config: Config,
 levels: [max_list_depth]Level = undefined,
 depth: usize = 0,
+blockquotes: [max_blockquote_depth]BlockQuote = undefined,
+blockquote_depth: usize = 0,
 
 pub fn run(self: *Parser) !void {
     const root_close = try self.config.root(self.writer, .{});
@@ -16,6 +18,15 @@ pub fn run(self: *Parser) !void {
         if (body.len == 0) {
             try self.closeAllLists();
             continue;
+        }
+
+        if (std.mem.startsWith(u8, body, "> ")) {
+            try self.closeAllLists();
+            try self.processQuoteLine(body);
+        } else {
+            while (self.blockquote_depth > 0) {
+                try popBlockquote(self);
+            }
         }
 
         if (std.mem.startsWith(u8, body, "```")) {
@@ -102,6 +113,40 @@ fn renderBlock(self: *Parser, meta: []const u8) !void {
         started = true;
     }
     if (close.len > 0) try self.writer.writeAll(close);
+}
+
+fn processQuoteLine(self: *Parser, line: []const u8) !void {
+    const lvl = blockquoteLevel(line);
+
+    while (lvl.depth < self.blockquote_depth) {
+        try popBlockquote(self);
+    }
+
+    while (lvl.depth > self.blockquote_depth) {
+        try pushBlockquote(self);
+    }
+
+    if (lvl.indent < line.len) try renderInline(self, line[lvl.indent..]);
+}
+
+fn pushBlockquote(self: *Parser) !void {
+    const d = self.depth;
+    const formatter: Config.Fn = self.config.blockquote;
+    const close = try formatter(self.writer, .{});
+
+    self.blockquotes[d] = .{
+        .close = close,
+    };
+
+    self.blockquote_depth = d + 1;
+}
+
+fn popBlockquote(self: *Parser) !void {
+    const i = self.blockquote_depth - 1;
+    if (self.blockquotes[i].close.len > 0) {
+        try self.writer.writeAll(self.blockquotes[i].close);
+    }
+    self.blockquote_depth -= 1;
 }
 
 fn processListItem(self: *Parser, indent: usize, item: ListMatch) !void {
@@ -343,6 +388,27 @@ fn findParenClose(s: []const u8, open: usize) ?usize {
     return null;
 }
 
+fn blockquoteLevel(line: []const u8) BlockquoteLevel {
+    var d: usize = 0;
+    var i: usize = 0;
+
+    while (i < line.len) {
+        const slice = line[i..];
+        const trimmed = std.mem.trimStart(u8, slice, &whitespace);
+        i += slice.len - trimmed.len;
+
+        if (std.mem.startsWith(u8, trimmed, "> ")) {
+            d += 1;
+            i += 2;
+        } else {
+            break;
+        }
+    }
+    const lvl: BlockquoteLevel = .{ .depth = d, .indent = i };
+
+    return lvl;
+}
+
 fn writeEscaped(writer: *Writer, input: []const u8) Writer.Error!void {
     var start: usize = 0;
     for (input, 0..) |byte, i| {
@@ -383,4 +449,14 @@ const Level = struct {
     item_close: []const u8,
     item_open: bool,
     has_children: bool,
+};
+
+const max_blockquote_depth = 16;
+const BlockQuote = struct {
+    close: []const u8,
+};
+
+const BlockquoteLevel = struct {
+    depth: usize,
+    indent: usize,
 };
