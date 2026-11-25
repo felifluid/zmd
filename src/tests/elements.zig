@@ -437,7 +437,7 @@ test "link" {
     try expectEqualStrings(html, parsed);
 }
 
-test "wikilink" {
+test "absolute wikilink" {
     const html =
         \\<!DOCTYPE html>
         \\<html>
@@ -455,6 +455,31 @@ test "wikilink" {
 
     const md =
         \\[[/example.md|link title]]
+    ;
+
+    const parsed = try zmd.parseAlloc(allocator, md, .{});
+    defer allocator.free(parsed);
+    try expectEqualStrings(html, parsed);
+}
+
+test "relative wikilink with anchor" {
+    const html =
+        \\<!DOCTYPE html>
+        \\<html>
+        \\<head>
+        \\  <meta charset="utf8">
+        \\</head>
+        \\<body>
+        \\<main>
+        \\<p><a class="wikilink" href="./relative-link.md#heading">./relative-link.md#heading</a></p>
+        \\</main>
+        \\</body>
+        \\</html>
+        \\
+    ;
+
+    const md =
+        \\[[./relative-link.md#heading]]
     ;
 
     const parsed = try zmd.parseAlloc(allocator, md, .{});

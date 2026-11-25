@@ -289,7 +289,7 @@ fn inlineWikilink(
 
     const vbar = findVbar(s, open);
 
-    const href = if (vbar) |val| s[inner_open + 1 .. val] else s[inner_open + 1 .. inner_close];
+    const href = if (vbar) |val| s[inner_open + 1 .. val] else s[inner_open + 1 .. inner_close - 1];
     const label = if (vbar) |val| s[val + 1 .. inner_close - 1] else s[inner_open + 1 .. inner_close - 1];
 
     try writeEscaped(self.writer, pending);
